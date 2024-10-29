@@ -17,18 +17,21 @@ train_df = Aug.augment_relevant_answers_batch(train_df)
 train_df = Dt.AddMiraclEN(train_df)
 
 Dt.SaveDF(train_df, val_df, test_df)  # Дабы сохранять датафреймы
+
 trainingResults = ML.TrainingBertModel(train_df, val_df)
 train_texts, train_labels, valid_texts, valid_labels = trainingResults[0]
 model = trainingResults[1]
-reference = 'next_model.pt'
+reference = 'best_model.pt'
 ML.SaveModel(model, reference)
 Model = ML.Model(reference)  # Подгрузка модели
 
-predictions, classificationReport, rocAucScore = ML.Test1(valid_texts, valid_labels, Model)
-print("Results in validation:")
-print(classificationReport)
-print("roc auc score:", rocAucScore)
+# проверка на val_df
+# predictions, classificationReport, rocAucScore = ML.Test1(valid_texts, valid_labels, Model)
+# print("Results in validation:")
+# print(classificationReport)
+# print("roc auc score:", rocAucScore)
 
+# проверка на test_df
 testPredictions, testClassificationReport, testRocAucScore = ML.Test2(test_df, Model)
 print("Results in test:")
 print(testClassificationReport)
