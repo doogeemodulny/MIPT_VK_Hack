@@ -60,7 +60,7 @@ def CreateNecessaryDataset():
         #     Ya=AddYandexDataset()
         #     train_df = pd.concat([train_df, Ya[0]], ignore_index=True)
         #     val_df = pd.concat([val_df, Ya[1]], ignore_index=True)
-        return (train_df, val_df)
+    return (train_df, val_df)
 
 def AddMiraclEN(train_df):
     # Загружаем английский MIRACL датасет
