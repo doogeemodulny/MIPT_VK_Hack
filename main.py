@@ -3,8 +3,6 @@ import Dataset as Dt
 import MachineLearning as ML
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_recall_fscore_support, classification_report
 
-# USE_EXTRA_YANDEX_DATASET = False # теперь не используется
-
 train_df, val_df = Dt.CreateNecessaryDataset()
 print('TrainDataFrame and ValidationDataFrame are loaded')
 train_df, val_df, test_df = Dt.SplitIntoTest(train_df, val_df)  # Если нужен тестовый датасет

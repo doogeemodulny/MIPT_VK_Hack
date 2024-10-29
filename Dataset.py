@@ -1,4 +1,3 @@
-#from google.colab import drive
 import pandas as pd
 import numpy as np
 from datasets import load_dataset
@@ -8,7 +7,6 @@ import os
 from sklearn.utils import shuffle
 
 def CreateNecessaryDataset():
-    #drive.mount('/content/drive') Не нужно, т.к. работаем не в колабе
     ds = load_dataset("Cohere/miracl-ru-queries-22-12")
     train = ds["train"]
     dev = ds["dev"]
@@ -56,10 +54,6 @@ def CreateNecessaryDataset():
         })
 
         val_df = pd.concat([val_df, positive_data, negative_data], ignore_index=True)
-        # if AddYa:
-        #     Ya=AddYandexDataset()
-        #     train_df = pd.concat([train_df, Ya[0]], ignore_index=True)
-        #     val_df = pd.concat([val_df, Ya[1]], ignore_index=True)
         return (train_df, val_df)
 
 def AddMiraclEN(train_df):
@@ -114,6 +108,20 @@ def SaveDF(train_df=pd.DataFrame(), val_df=pd.DataFrame(), test_df=pd.DataFrame(
     if not(test_df.empty):
         test_df.to_csv('UsedDatasets/test_df.csv')
 
+def LoadDF(train='', val='', test=''):
+    dfs=[]
+    if train:
+        train_df=pd.read_csv(f'UsedDatasets/{train}')
+        dfs.append(train_df)
+    if val:
+        val_df=pd.read_csv(f'UsedDatasets/{val}')
+        dfs.append(val_df)
+    if test:
+        test_df=pd.read_csv(f'UsedDatasets/{test}')
+        dfs.append(test_df)
+    dfs=(i for i in dfs)
+    return dfs
+
 def SplitIntoTest(train_df, val_df, test_ratio = 0.1):
     # Разделяем train на train и test
     train_df, test_1_df = train_test_split(train_df, test_size=test_ratio, random_state=42)
@@ -122,26 +130,3 @@ def SplitIntoTest(train_df, val_df, test_ratio = 0.1):
     # Объединяем тестовые выборки
     test_df = pd.concat([test_1_df, test_2_df])
     return (train_df, val_df, test_df)
-
-# не используется
-def AddYandexDataset():
-    data = []
-    c = 0
-    with open('ExternalDatasets/dataset.jsonl', 'r', encoding='utf-8') as f:
-        for line in f:
-            data.append(json.loads(line))
-    data = [d for d in data if len(d["answer"]) > 300]
-    for d in data:
-        d["question"] = d["question"].replace("\n", "")
-        d["answer"] = d["answer"].replace("\n", "")
-
-    yandexq_df = pd.DataFrame()
-    yandexq_df["question"] = [d["question"] for d in data]
-    yandexq_df["answer"] = [d["answer"] for d in data]
-    yandexq_df["isRelevant"] = [1 for d in data]
-
-    yandexq_df_sampled = yandexq_df.sample(n=33000, random_state=42)  # берем 33000 случайных строк
-
-    train_yandexq_df_sampled, val_yandexq_df_sampled = train_test_split(yandexq_df_sampled, test_size=2 / 7,
-                                                                        random_state=42)
-    return (train_yandexq_df_sampled, val_yandexq_df_sampled)
