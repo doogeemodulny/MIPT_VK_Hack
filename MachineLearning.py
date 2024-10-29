@@ -3,6 +3,7 @@ from torch import nn
 import pandas as pd
 from transformers import Trainer, TrainingArguments
 from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import BertConfig
 from sklearn.metrics import roc_auc_score, accuracy_score, precision_recall_fscore_support, classification_report
 from tqdm import tqdm
 import os
@@ -20,6 +21,17 @@ class RelevantDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.labels)
+
+# кастомный Trainer для реализации взвешивания несбалансированных классов
+class CustomTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.get("labels")
+        # forward pass
+        outputs = model(**inputs)
+        logits = outputs.get('logits')
+        loss_fct = nn.CrossEntropyLoss(weight=torch.tensor([1.0, 3.0]).to(logits.device)) # 1.0 и 3.0 - веса нерелевантных и релевантных ответов соответственно
+        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+        return (loss, outputs) if return_outputs else loss
 
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
@@ -65,9 +77,12 @@ def TrainingBertModel(train_df, val_df):
     device = torch.device("cuda")
 
     # tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-    tokenizer = BertTokenizer.from_pretrained('cointegrated/rubert-tiny')
+    tokenizer = BertTokenizer.from_pretrained('cointegrated/rubert-tiny2')
     # model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased', num_labels=2)
-    model = BertForSequenceClassification.from_pretrained('cointegrated/rubert-tiny', num_labels=2)
+
+    config = BertConfig.from_pretrained('cointegrated/rubert-tiny2', hidden_dropout_prob=0.2, attention_probs_dropout_prob=0.2, num_labels=2)
+    
+    model = BertForSequenceClassification.from_pretrained('cointegrated/rubert-tiny2', config=config)
 
     train_encodings = tokenizer(train_texts["text"].tolist(), truncation=True, padding=True)
     valid_encodings = tokenizer(valid_texts["text"].tolist(), truncation=True, padding=True)
@@ -80,24 +95,26 @@ def TrainingBertModel(train_df, val_df):
 
     training_args = TrainingArguments(
         output_dir='./results',
-        num_train_epochs=1.5,  # увеличено число эпох (а потом снова уменьшено)
+        num_train_epochs=1,  # увеличено число эпох (а потом снова уменьшено)
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
         learning_rate=2e-5,  # зафиксированная скорость обучения
         warmup_steps=500,
         weight_decay=0.01,
         logging_dir='./logs',
-        eval_strategy="steps",  # оценка на каждом шаге
+        evaluation_strategy="steps",  # оценка на каждом шаге
         eval_steps=500,
         lr_scheduler_type='cosine',
         load_best_model_at_end=True,
-        metric_for_best_model="eval_roc_auc",  # используем метрику ROC AUC для выбора лучшей модели
+        metric_for_best_model="recall",  # используем метрику recall для выбора лучшей модели
         greater_is_better=True,
         save_strategy="steps",  # сохранение на каждом шаге
         save_steps=500,  # save_steps кратно eval_steps
+        # report_to=None  # Disable wandb integration
     )
 
-    trainer = Trainer(
+    # trainer = Trainer(
+    trainer = CustomTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
@@ -115,26 +132,26 @@ def SaveModel(model: BertForSequenceClassification, ref):
 
 class Model():
     def __init__(self, ref):
-        self.model2 = BertForSequenceClassification.from_pretrained('cointegrated/rubert-tiny', num_labels=2)
+        self.model2 = BertForSequenceClassification.from_pretrained('cointegrated/rubert-tiny2', num_labels=2)
         self.state_dict2 = torch.load(f'Models/{ref}')
         self.model2.load_state_dict(self.state_dict2)
 
     def predict2(self, question, answer):
-        self.tokenizer = BertTokenizer.from_pretrained('cointegrated/rubert-tiny')
+        self.tokenizer = BertTokenizer.from_pretrained('cointegrated/rubert-tiny2')
         inputs = self.tokenizer(f"{question}[SEP]{answer}", return_tensors='pt', truncation=True, padding=True)
         outputs = self.model2(**inputs)
         predictions = torch.argmax(outputs.logits, dim=-1)
         return 1 if predictions.item() == 1 else 0
 
-class CustomTrainer(Trainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.get("labels")
-        # forward pass
-        outputs = model(**inputs)
-        logits = outputs.get('logits')
-        loss_fct = nn.CrossEntropyLoss(weight=torch.tensor([1.0, 4.0]).to(logits.device)) # 1.0 - вес нуля, 4.0 - вес единички
-        loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-        return (loss, outputs) if return_outputs else loss
+# class CustomTrainer(Trainer):
+#     def compute_loss(self, model, inputs, return_outputs=False):
+#         labels = inputs.get("labels")
+#         # forward pass
+#         outputs = model(**inputs)
+#         logits = outputs.get('logits')
+#         loss_fct = nn.CrossEntropyLoss(weight=torch.tensor([1.0, 4.0]).to(logits.device)) # 1.0 - вес нуля, 4.0 - вес единички
+#         loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
+#         return (loss, outputs) if return_outputs else loss
 
 def Test1(valid_texts, valid_labels, M: Model):
     predictions=[]
