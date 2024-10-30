@@ -54,7 +54,7 @@ def CreateNecessaryDataset():
         })
 
         val_df = pd.concat([val_df, positive_data, negative_data], ignore_index=True)
-        return (train_df, val_df)
+    return (train_df, val_df)
 
 def AddMiraclEN(train_df):
     # Загружаем английский MIRACL датасет
